@@ -1,7 +1,12 @@
 import cv2
 import traceback
 import os
-from neural_network import MyNeuralNetwork
+from sklearn import svm
+
+import sklearn.decomposition.pca as pca
+import numpy as np
+
+from sklearn.externals import joblib
 
 CASCPATH = "data/haarcascades/haarcascade_frontalface_alt.xml"
 
@@ -21,7 +26,6 @@ for line in open("classes.in", "r"):
 total_num_inputs = 180 * 256
 total_num_outputs = len(class_labels) # Note: still stubbed. corresponds to total number of people to recognize
 total_num_hidden_layers = 100 # Note: still needs to be experimented.
-neuralNetwork = MyNeuralNetwork(total_num_inputs, total_num_hidden_layers, total_num_outputs)
 
 # Get user supplied values
 cascPath = CASCPATH
@@ -96,14 +100,25 @@ for line in open("data.out", "r"):
 
         try:
             image = cv2.imread(imagePath)
-            hsv_base = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-            hist = cv2.calcHist([hsv_base], [0, 1], None, [180, 256], [0, 180, 0, 256])
+            resized = cv2.resize(image, (100, 100))
+            gray = np.array(cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)).flatten()
 
-            x_train.append(hist.ravel())
+            x_train.append(gray)
             y_train.append(int(face_id) - 1)
 
         except:
             traceback.print_exc()
             continue
 
-neuralNetwork.train(x_train, y_train, len(x_train[0]), class_labels)
+x_train_arr = np.array(x_train)
+pca_obj = pca.PCA()
+pca_obj.fit(x_train_arr)
+x_train_arr = pca_obj.transform(x_train_arr)
+
+print(x_train_arr.shape)
+
+clf = svm.SVC(C=5., gamma=0.001)
+clf.fit(x_train_arr, y_train)
+
+joblib.dump(clf, "svm.pkl")
+joblib.dump(pca_obj, "pca.pkl")
